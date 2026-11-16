@@ -1,35 +1,152 @@
 import { useEffect, useState } from "react";
 
+const emptyForm = {
+  company: "",
+  role: "",
+  status: "Saved",
+};
+
+const statuses = [
+  "Saved",
+  "Applied",
+  "Interview",
+  "Offer",
+  "Rejected",
+];
+
 function App() {
   const [jobs, setJobs] = useState([]);
+  const [form, setForm] = useState({ ...emptyForm });
+  const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  // Get jobs from Express backend
-  useEffect(() => {
-    async function fetchJobs() {
-      try {
-        const response = await fetch("/api/jobs");
+  // Get applications from MongoDB through Express
+  async function loadJobs() {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/jobs");
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch jobs");
-        }
-
-        const data = await response.json();
-
-        setJobs(data);
-      } catch (err) {
-        setError("Unable to connect to backend.");
-        console.error(err);
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error("Could not fetch applications");
       }
-    }
 
-    fetchJobs();
+      const data = await response.json();
+      setJobs(data);
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadJobs();
   }, []);
 
-  // Calculate dashboard statistics
+  // Handle form input changes
+  function handleChange(e) {
+    const { name, value } = e.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  }
+
+  // Add or update a job
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const isEditing = Boolean(editingId);
+
+      const url = isEditing
+        ? `/api/jobs/${editingId}`
+        : "/api/jobs";
+
+      const response = await fetch(url, {
+        method: isEditing ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save job");
+      }
+
+      setMessage(
+        isEditing
+          ? "Job updated successfully!"
+          : "Job added successfully!"
+      );
+
+      setForm({ ...emptyForm });
+      setEditingId(null);
+      await loadJobs();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Start editing a selected application
+  function editJob(job) {
+    setEditingId(job._id);
+
+    setForm({
+      company: job.company,
+      role: job.role,
+      status: job.status,
+    });
+
+    setMessage("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Delete application
+  async function deleteJob(job) {
+    const confirmed = window.confirm(
+      `Delete application from ${job.company}?`
+    );
+
+    if (!confirmed) return;
+
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/jobs/${job._id}`,
+        { method: "DELETE" }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete job");
+      }
+
+      if (editingId === job._id) {
+        setEditingId(null);
+        setForm({ ...emptyForm });
+      }
+
+      setMessage("Job deleted successfully!");
+      await loadJobs();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   const stats = [
     {
       title: "Total Applications",
@@ -51,20 +168,19 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 p-6 md:p-10">
-      <div className="mx-auto max-w-6xl">
+      <main className="mx-auto max-w-6xl">
 
-        <header className="mb-8">
+        <header>
           <h1 className="text-3xl font-bold text-slate-900">
             JobTracker AI
           </h1>
-
           <p className="mt-2 text-slate-500">
             Track, manage and improve your job search.
           </p>
         </header>
 
-        {/* Dashboard cards */}
-        <div className="grid gap-5 sm:grid-cols-3">
+        {/* Dashboard */}
+        <div className="mt-8 grid gap-5 sm:grid-cols-3">
           {stats.map((stat) => (
             <div
               key={stat.title}
@@ -73,7 +189,6 @@ function App() {
               <p className="text-sm text-slate-500">
                 {stat.title}
               </p>
-
               <h2 className="mt-3 text-3xl font-bold">
                 {stat.count}
               </h2>
@@ -81,25 +196,129 @@ function App() {
           ))}
         </div>
 
-        {/* Applications list */}
+        {/* Add / Edit form */}
+        <section className="mt-8 rounded-xl bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold">
+            {editingId ? "Edit Job" : "Add New Job"}
+          </h2>
+
+          <form
+            onSubmit={handleSubmit}
+            className="mt-5 space-y-4"
+          >
+            <div>
+              <label
+                htmlFor="company"
+                className="block text-sm font-medium"
+              >
+                Company Name
+              </label>
+
+              <input
+                id="company"
+                name="company"
+                value={form.company}
+                onChange={handleChange}
+                placeholder="e.g. Example Tech"
+                required
+                minLength={2}
+                maxLength={100}
+                className="mt-2 w-full rounded-lg border border-slate-300 p-3"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="role"
+                className="block text-sm font-medium"
+              >
+                Job Role
+              </label>
+
+              <input
+                id="role"
+                name="role"
+                value={form.role}
+                onChange={handleChange}
+                placeholder="e.g. React Developer"
+                required
+                minLength={2}
+                maxLength={100}
+                className="mt-2 w-full rounded-lg border border-slate-300 p-3"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="status"
+                className="block text-sm font-medium"
+              >
+                Application Status
+              </label>
+
+              <select
+                id="status"
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                className="mt-2 w-full rounded-lg border border-slate-300 p-3"
+              >
+                {statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {saving
+                  ? "Saving..."
+                  : editingId
+                  ? "Update Job"
+                  : "Add Job"}
+              </button>
+
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingId(null);
+                    setForm({ ...emptyForm });
+                  }}
+                  className="rounded-lg border border-slate-300 px-6 py-3"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+
+          {error && (
+            <p className="mt-4 text-red-600">{error}</p>
+          )}
+
+          {message && (
+            <p className="mt-4 text-green-600">
+              {message}
+            </p>
+          )}
+        </section>
+
+        {/* Saved applications */}
         <section className="mt-8 rounded-xl bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold">
             My Job Applications
           </h2>
 
-          <p className="mt-2 text-xs text-slate-400">
-            Demo data from Express API
-          </p>
-
           {loading && (
             <p className="mt-4 text-slate-500">
               Loading applications...
-            </p>
-          )}
-
-          {error && (
-            <p className="mt-4 text-red-600">
-              {error}
             </p>
           )}
 
@@ -112,26 +331,44 @@ function App() {
           <div className="mt-5 space-y-3">
             {jobs.map((job) => (
               <div
-                key={job.id}
-                className="rounded-lg border border-slate-200 p-4"
+                key={job._id}
+                className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 p-4"
               >
-                <h3 className="font-semibold text-slate-900">
-                  {job.company}
-                </h3>
+                <div>
+                  <h3 className="font-semibold">
+                    {job.company}
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    {job.role}
+                  </p>
+                  <p className="mt-2 text-sm text-blue-600">
+                    {job.status}
+                  </p>
+                </div>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  {job.role}
-                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => editJob(job)}
+                    className="rounded-lg bg-amber-100 px-4 py-2 text-amber-800"
+                  >
+                    Edit
+                  </button>
 
-                <p className="mt-2 text-sm font-medium text-blue-600">
-                  {job.status}
-                </p>
+                  <button
+                    type="button"
+                    onClick={() => deleteJob(job)}
+                    className="rounded-lg bg-red-100 px-4 py-2 text-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </section>
 
-      </div>
+      </main>
     </div>
   );
 }

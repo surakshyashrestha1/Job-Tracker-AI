@@ -1,11 +1,20 @@
+import "dotenv/config";
 import express from "express";
 
+import { connectDB } from "./config/db.js";
+import jobRoutes from "./routes/jobRoutes.js";
+
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 app.use(express.json());
 
-// Test backend
+// Root route
+app.get("/", (req, res) => {
+  res.send("Welcome to JobTracker AI Backend!");
+});
+
+// Health API
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
@@ -13,28 +22,31 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Sample job applications
-const jobs = [
-  {
-    id: 1,
-    company: "Demo Tech",
-    role: "React Developer",
-    status: "Applied",
-  },
-  {
-    id: 2,
-    company: "Example IT",
-    role: "Backend Developer",
-    status: "Interview",
-  },
-];
+// MongoDB CRUD routes
+app.use("/api/jobs", jobRoutes);
 
-// Get all jobs
-app.get("/api/jobs", (req, res) => {
-  res.json(jobs);
+// Error handler
+app.use((error, req, res, next) => {
+  console.error(error.message);
+
+  res.status(500).json({
+    message: "Internal server error",
+  });
 });
 
-// Start backend
-app.listen(PORT, () => {
-  console.log(`Backend running at http://localhost:${PORT}`);
-});
+// Connect database before starting server
+async function startServer() {
+  try {
+    await connectDB();
+
+    app.listen(PORT, () => {
+      console.log(`Backend running at http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Database connection failed:", error.message);
+
+    process.exit(1);
+  }
+}
+
+startServer();
