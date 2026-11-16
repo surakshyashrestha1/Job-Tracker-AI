@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AuthScreen from "./AuthScreen.jsx";
+import JobBoard from "./JobBoard.jsx";
 
 const emptyForm = {
   company: "",
@@ -7,13 +8,7 @@ const emptyForm = {
   status: "Saved",
 };
 
-const statuses = [
-  "Saved",
-  "Applied",
-  "Interview",
-  "Offer",
-  "Rejected",
-];
+const statuses = ["Saved", "Applied", "Interview", "Offer", "Rejected"];
 
 function Dashboard() {
   const [jobs, setJobs] = useState([]);
@@ -69,9 +64,7 @@ function Dashboard() {
     try {
       const isEditing = Boolean(editingId);
 
-      const url = isEditing
-        ? `/api/jobs/${editingId}`
-        : "/api/jobs";
+      const url = isEditing ? `/api/jobs/${editingId}` : "/api/jobs";
 
       const response = await fetch(url, {
         method: isEditing ? "PATCH" : "POST",
@@ -86,9 +79,7 @@ function Dashboard() {
       }
 
       setMessage(
-        isEditing
-          ? "Job updated successfully!"
-          : "Job added successfully!"
+        isEditing ? "Job updated successfully!" : "Job added successfully!",
       );
 
       setForm({ ...emptyForm });
@@ -117,9 +108,7 @@ function Dashboard() {
 
   // Delete application
   async function deleteJob(job) {
-    const confirmed = window.confirm(
-      `Delete application from ${job.company}?`
-    );
+    const confirmed = window.confirm(`Delete application from ${job.company}?`);
 
     if (!confirmed) return;
 
@@ -127,10 +116,9 @@ function Dashboard() {
     setMessage("");
 
     try {
-      const response = await fetch(
-        `/api/jobs/${job._id}`,
-        { method: "DELETE" }
-      );
+      const response = await fetch(`/api/jobs/${job._id}`, {
+        method: "DELETE",
+      });
 
       if (!response.ok) {
         throw new Error("Failed to delete job");
@@ -148,6 +136,34 @@ function Dashboard() {
     }
   }
 
+  async function changeStatus(job, newStatus) {
+    if (job.status === newStatus) return;
+
+    try {
+      setError("");
+
+      const response = await fetch(`/api/jobs/${job._id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          status: newStatus,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not update status");
+      }
+
+      await loadJobs();
+      setMessage("Job status updated successfully!");
+    } catch (error) {
+      setError(error.message);
+    }
+  }
+
   const stats = [
     {
       title: "Total Applications",
@@ -155,26 +171,19 @@ function Dashboard() {
     },
     {
       title: "Interviews",
-      count: jobs.filter(
-        (job) => job.status === "Interview"
-      ).length,
+      count: jobs.filter((job) => job.status === "Interview").length,
     },
     {
       title: "Offers",
-      count: jobs.filter(
-        (job) => job.status === "Offer"
-      ).length,
+      count: jobs.filter((job) => job.status === "Offer").length,
     },
   ];
 
   return (
     <div className="min-h-screen bg-slate-100 p-6 md:p-10">
       <main className="mx-auto max-w-6xl">
-
         <header>
-          <h1 className="text-3xl font-bold text-slate-900">
-            JobTracker AI
-          </h1>
+          <h1 className="text-3xl font-bold text-slate-900">JobTracker AI</h1>
           <p className="mt-2 text-slate-500">
             Track, manage and improve your job search.
           </p>
@@ -183,16 +192,9 @@ function Dashboard() {
         {/* Dashboard */}
         <div className="mt-8 grid gap-5 sm:grid-cols-3">
           {stats.map((stat) => (
-            <div
-              key={stat.title}
-              className="rounded-xl bg-white p-6 shadow-sm"
-            >
-              <p className="text-sm text-slate-500">
-                {stat.title}
-              </p>
-              <h2 className="mt-3 text-3xl font-bold">
-                {stat.count}
-              </h2>
+            <div key={stat.title} className="rounded-xl bg-white p-6 shadow-sm">
+              <p className="text-sm text-slate-500">{stat.title}</p>
+              <h2 className="mt-3 text-3xl font-bold">{stat.count}</h2>
             </div>
           ))}
         </div>
@@ -203,15 +205,9 @@ function Dashboard() {
             {editingId ? "Edit Job" : "Add New Job"}
           </h2>
 
-          <form
-            onSubmit={handleSubmit}
-            className="mt-5 space-y-4"
-          >
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
             <div>
-              <label
-                htmlFor="company"
-                className="block text-sm font-medium"
-              >
+              <label htmlFor="company" className="block text-sm font-medium">
                 Company Name
               </label>
 
@@ -229,10 +225,7 @@ function Dashboard() {
             </div>
 
             <div>
-              <label
-                htmlFor="role"
-                className="block text-sm font-medium"
-              >
+              <label htmlFor="role" className="block text-sm font-medium">
                 Job Role
               </label>
 
@@ -250,10 +243,7 @@ function Dashboard() {
             </div>
 
             <div>
-              <label
-                htmlFor="status"
-                className="block text-sm font-medium"
-              >
+              <label htmlFor="status" className="block text-sm font-medium">
                 Application Status
               </label>
 
@@ -278,11 +268,7 @@ function Dashboard() {
                 disabled={saving}
                 className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                {saving
-                  ? "Saving..."
-                  : editingId
-                  ? "Update Job"
-                  : "Add Job"}
+                {saving ? "Saving..." : editingId ? "Update Job" : "Add Job"}
               </button>
 
               {editingId && (
@@ -300,75 +286,21 @@ function Dashboard() {
             </div>
           </form>
 
-          {error && (
-            <p className="mt-4 text-red-600">{error}</p>
-          )}
+          {error && <p className="mt-4 text-red-600">{error}</p>}
 
-          {message && (
-            <p className="mt-4 text-green-600">
-              {message}
-            </p>
-          )}
+          {message && <p className="mt-4 text-green-600">{message}</p>}
         </section>
 
-        {/* Saved applications */}
-        <section className="mt-8 rounded-xl bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold">
-            My Job Applications
-          </h2>
-
-          {loading && (
-            <p className="mt-4 text-slate-500">
-              Loading applications...
-            </p>
-          )}
-
-          {!loading && !error && jobs.length === 0 && (
-            <p className="mt-4 text-slate-500">
-              No job applications yet.
-            </p>
-          )}
-
-          <div className="mt-5 space-y-3">
-            {jobs.map((job) => (
-              <div
-                key={job._id}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 p-4"
-              >
-                <div>
-                  <h3 className="font-semibold">
-                    {job.company}
-                  </h3>
-                  <p className="text-sm text-slate-500">
-                    {job.role}
-                  </p>
-                  <p className="mt-2 text-sm text-blue-600">
-                    {job.status}
-                  </p>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => editJob(job)}
-                    className="rounded-lg bg-amber-100 px-4 py-2 text-amber-800"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => deleteJob(job)}
-                    className="rounded-lg bg-red-100 px-4 py-2 text-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
+        {/* Job board: search, filters, list/board, edit and delete */}
+        {loading && (
+          <p className="mt-8 text-slate-500">Loading applications...</p>
+        )}
+        <JobBoard
+          jobs={jobs}
+          onEdit={editJob}
+          onDelete={deleteJob}
+          onStatusChange={changeStatus}
+        />
       </main>
     </div>
   );
@@ -445,18 +377,14 @@ function App() {
   }
 
   if (!user) {
-    return (
-      <AuthScreen onAuthenticated={setUser} />
-    );
+    return <AuthScreen onAuthenticated={setUser} />;
   }
 
   return (
     <>
       <div className="bg-slate-100 px-6 pt-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <p className="text-sm text-slate-600">
-            Welcome, {user.name}
-          </p>
+          <p className="text-sm text-slate-600">Welcome, {user.name}</p>
 
           <button
             onClick={handleLogout}
