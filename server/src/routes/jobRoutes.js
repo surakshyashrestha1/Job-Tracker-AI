@@ -1,35 +1,48 @@
 import express from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
+
 import Application from "../models/Application.js";
+import requireAuth from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
-const jobSchema = z
+// All job APIs require login
+router.use(requireAuth);
+
+// Allowed fields and values
+const jobFields = {
+  company: z.string().trim().min(2).max(100),
+  role: z.string().trim().min(2).max(100),
+  status: z.enum(["Saved", "Applied", "Interview", "Offer", "Rejected"]),
+};
+
+const createSchema = z
   .object({
-    company: z.string().trim().min(2),
-    role: z.string().trim().min(2),
-    status: z
-      .enum(["Saved", "Applied", "Interview", "Offer", "Rejected"])
-      .default("Saved"),
+    company: jobFields.company,
+    role: jobFields.role,
+    status: jobFields.status.default("Saved"),
   })
   .strict();
 
 const updateSchema = z
   .object({
-    company: z.string().trim().min(2).optional(),
-    role: z.string().trim().min(2).optional(),
-    status: z
-      .enum(["Saved", "Applied", "Interview", "Offer", "Rejected"])
-      .optional(),
+    company: jobFields.company.optional(),
+    role: jobFields.role.optional(),
+    status: jobFields.status.optional(),
   })
   .strict()
-  .refine((data) => Object.keys(data).length > 0);
+  .refine(
+    (data) => Object.keys(data).length > 0,
+    "At least one field is required",
+  );
 
-// GET — Read all jobs
+// READ — Logged-in user's jobs only
 router.get("/", async (req, res, next) => {
   try {
-    const jobs = await Application.find().sort({ createdAt: -1 });
+    const jobs = await Application.find({
+      user: req.user.id,
+    }).sort({ createdAt: -1 });
 
     res.json(jobs);
   } catch (error) {
@@ -37,10 +50,10 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-// POST — Add new job
+// CREATE — Add job for current user
 router.post("/", async (req, res, next) => {
   try {
-    const result = jobSchema.safeParse(req.body);
+    const result = createSchema.safeParse(req.body);
 
     if (!result.success) {
       return res.status(400).json({
@@ -48,7 +61,10 @@ router.post("/", async (req, res, next) => {
       });
     }
 
-    const job = await Application.create(result.data);
+    const job = await Application.create({
+      ...result.data,
+      user: req.user.id,
+    });
 
     res.status(201).json(job);
   } catch (error) {
@@ -56,7 +72,7 @@ router.post("/", async (req, res, next) => {
   }
 });
 
-// PATCH — Update job
+// UPDATE — Edit user's own job
 router.patch("/:id", async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -73,10 +89,16 @@ router.patch("/:id", async (req, res, next) => {
       });
     }
 
-    const job = await Application.findByIdAndUpdate(
-      req.params.id,
-      result.data,
-      { new: true, runValidators: true },
+    const job = await Application.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        user: req.user.id,
+      },
+      { $set: result.data },
+      {
+        new: true,
+        runValidators: true,
+      },
     );
 
     if (!job) {
@@ -91,7 +113,7 @@ router.patch("/:id", async (req, res, next) => {
   }
 });
 
-// DELETE — Remove job
+// DELETE — Delete user's own job
 router.delete("/:id", async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -100,7 +122,10 @@ router.delete("/:id", async (req, res, next) => {
       });
     }
 
-    const job = await Application.findByIdAndDelete(req.params.id);
+    const job = await Application.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user.id,
+    });
 
     if (!job) {
       return res.status(404).json({

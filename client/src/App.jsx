@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AuthScreen from "./AuthScreen.jsx";
 
 const emptyForm = {
   company: "",
@@ -14,7 +15,7 @@ const statuses = [
   "Rejected",
 ];
 
-function App() {
+function Dashboard() {
   const [jobs, setJobs] = useState([]);
   const [form, setForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState(null);
@@ -370,6 +371,104 @@ function App() {
 
       </main>
     </div>
+  );
+}
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Check whether user is already logged in
+  useEffect(() => {
+    let active = true;
+
+    async function checkLogin() {
+      try {
+        const response = await fetch("/api/auth/me", {
+          credentials: "same-origin",
+        });
+
+        if (!response.ok) {
+          if (active) setUser(null);
+          return;
+        }
+
+        const data = await response.json();
+
+        if (active) {
+          setUser(data.user);
+        }
+      } catch (error) {
+        console.error("Session check failed:", error);
+
+        if (active) {
+          setUser(null);
+        }
+      } finally {
+        if (active) {
+          setCheckingAuth(false);
+        }
+      }
+    }
+
+    checkLogin();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Log out current user
+  async function handleLogout() {
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+
+      if (!response.ok) {
+        throw new Error("Logout failed");
+      }
+
+      setUser(null);
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        Checking login session...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <AuthScreen onAuthenticated={setUser} />
+    );
+  }
+
+  return (
+    <>
+      <div className="bg-slate-100 px-6 pt-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+          <p className="text-sm text-slate-600">
+            Welcome, {user.name}
+          </p>
+
+          <button
+            onClick={handleLogout}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <Dashboard />
+    </>
   );
 }
 
