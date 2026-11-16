@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AuthScreen from "./AuthScreen.jsx";
 import JobBoard from "./JobBoard.jsx";
+import ResumeMatcher from "./ResumeMatcher.jsx";
 
 const emptyForm = {
   company: "",
@@ -301,6 +302,7 @@ function Dashboard() {
           onDelete={deleteJob}
           onStatusChange={changeStatus}
         />
+        <ResumeMatcher />
       </main>
     </div>
   );
